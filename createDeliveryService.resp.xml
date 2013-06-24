@@ -1,1 +1,0 @@
-<?xml version="1.0"?><deliveryserviceProvisioning action="createDeliveryService"><message status="fail" message="One Content Origin can have only one regular Delivery Service"/><error code="3" message="One Content Origin can have only one regular Delivery Service"/></deliveryserviceProvisioning>

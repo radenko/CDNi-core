@@ -1,78 +1,8 @@
 <?
-
-if (!defined("MODE_DEBUG")) define("MODE_DEBUG",true);
-
-require_once("DB.php");
-
-class InterconPeer {
-    protected $_client=null;
-    protected $_localStatus=null;
-    protected $_peerStatus=null;
-    protected $_interconID=null;
-    
-    function peerStatus() {
-        return $this->_peerStatus;
-    }
-
-    function interconID() {
-        return $this->_interconID;
-    }
-
-    function localStatus() {
-        return $this->_localStatus;
-    }
-    
-    function client() {
-        return $this -> _client;
-    }
-    
-    function __construct($params) {
-        if (!isset($params['peerURL'])) {
-            throw new Exception('peerURL param is missing');
-        }
-
-        $url = $params['peerURL'];        
-        $this->_client = new SoapClient(
-                null,
-                array('location' => $url,
-                      'uri'      => $url,
-                      'trace' => 1
-                )
-            );
-        $this->setParams($params);
-    }
-    
-    function setParams($params) {
-        $params = array_change_key_case($params);
-     
-        if (isset($params['localStatus'])) $this -> _localStatus = $params['localstatus'];
-        if (isset($params['peerStatus'])) $this -> _peerStatus = $params['peerstatus'];
-        if (isset($params['interconID'])) $this -> _interconID = $params['interconid'];        
-    }
-    
-    function __call($name, $arguments) {
-        if (MODE_DEBUG) {
-            echo "Calling '$name' with";
-            print_r($arguments);
-            echo "<br/>";
-        }
-        
-        $res = $this->_client->__call($name,$arguments);
-        
-        if (MODE_DEBUG) {
-            echo "Response:";
-            var_dump($res);
-            echo "<br/>";
-        }
-        
-        return $res;
-    }
-}
-
 class Interconnection {
-    /**@var mixed[]*/
+    /**@var mixed[] Array of all configration items*/
     protected $config;
-    /**@var DB*/
+    /**@var DB Object to handle all queries to local database of CDNi interface*/
     protected $db = null;
     /**@var InterconPeer*/
     protected $clients = array();
