@@ -9,11 +9,11 @@
 class InterconPeer {
     /** @var SoapClient*/
     protected $_client=null;
-    /** @var */    
+    /** @var String local status of this interconnection*/    
     protected $_localStatus=null;
-    /** @var */
+    /** @var String status of interconnection in peer CDN*/
     protected $_peerStatus=null;
-    /** @var String ID of interconnection*/
+    /** @var String Common ID of interconnection*/
     protected $_interconID=null;
     /** @var String*/
     protected $_peerURL;
@@ -39,14 +39,26 @@ class InterconPeer {
         $this->setParams($params);
     }
     
+    /**
+     * Status of interconnection in peer CDN
+     * @return String
+     */
     function getPeerStatus() {
         return $this->_peerStatus;
     }
 
+    /**
+     * 
+     * @return String Common ID of interconnection
+     */
     function getInterconID() {
         return $this->_interconID;
     }
 
+    /**
+     * Local status of this interconnection 
+     * @return String
+     */
     function getLocalStatus() {
         return $this->_localStatus;
     }

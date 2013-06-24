@@ -4,109 +4,32 @@ class Interconnection {
     protected $config;
     /**@var DB Object to handle all queries to local database of CDNi interface*/
     protected $db = null;
-    /**@var InterconPeer*/
-    protected $clients = array();
     /**@var */
     public $iCDN = null;
+    /**@var InterconPeers */
+    protected $peers;
 
+    /**
+     * 
+     * @param mixed[] $config Array of all configration items
+     */
     function __construct($config) {
         $this -> config = $config;       
         $this -> db = new DB($this->config['i']);
+        $this -> peers = new InterconPeers($this->db);
     }
-
-    function addPeer($params,$replace=false) {
-        $lparams = array_change_key_case($params);
-        $id = null;
-        $url = null;
         
-        if (isset($lparams['cdnid']))
-            $id = $lparams['cdnid'];
-        if (isset($lparams['id']))
-            $id = $lparams['id'];
-
-        if (isset($lparams['peerurl']))
-            $url = $lparams['peerurl']; 
-        if (isset($lparams['url']))
-            $url = $lparams['url'];
-        if (isset($lparams['apiurl']))
-            $url = $lparams['apiurl'];
-        
-        $this -> addPeer2($id,$url,$params,$replace);
-    }
-    
-    function addPeer2 ($id,$url,$params,$replace=false) {
-        if (isset($params['interconID']))
-            $interconID = $params['interconID'];
-                
-        if (isset($url) && !is_null($url) && $url && isset($this -> clients[$url]))
-            $client = $this -> clients[$url];
-        if (isset($id)  && !is_null($id)  && $id  && isset($this -> clients[$id]))
-            $client = $this -> clients[$id];
-        if (isset($interconID)  && !is_null($interconID)  && $interconID  && isset($this -> clients[$interconID]))
-            $client = $this -> clients[$interconID];
-        
-        if (!isset($client) || !is_object($client) || $replace) {
-            $params['peerURL'] = $url;
-            if (isset($id))
-                $params['CDNid'] = $id;
-            
-            $client = new InterconPeer($params);
-        }
-                
-        if (isset($url) && !is_null($url) && $url)
-            $this -> clients[$url] = $client;
-        if (isset($id)  && !is_null($id)  && $id)
-            $this -> clients[$id] = $client;
-        if (isset($params['interconID']))
-            $this -> clients[$params['interconID']] = $client;
-    }
-    
     /**
-     * Gets all pears from database and creates clients to them.
+     * 
+     * @param mixed[] $config Array of all configration items
      */
-    function addAllPeers() {
-        $this -> db -> select('interconnections');
-            
-        while ($item = $this -> db -> fetch_assoc()) {
-                $this -> addPeer($item);
-        }
-    }
-    
-    function getPeer($CDNid) {
-        if (isset($this->clients[$CDNid])) {
-            $this -> $db -> select('interconnections','*',
-                    array('WHERE' => "CDNid=$CDNid")
-            );
-            
-            while ($item = $db -> fetch_assoc($result)) {
-                $this -> addPeer($item['peerURL'],$item);
-            }
-        }
-        
-        return $this->clients[$CDNid];
-    }
-    
     function setConfig($config) {
         $this -> config = $config;
     }
-        
-    function peerCall($peerURL,$method,$params) {
-        if (defined("MODE_DEBUG")) {echo "Calling $method: ".PHP_EOL; var_dump($params);}
-        
-        $response = http_post_fields($peerURL."/".$method, $params);
-        $responseObj=http_parse_message($response);
-        $body=$responseObj->body;
-        if (defined("MODE_DEBUG")) echo "Result: $body".PHP_EOL;
-        
-        $result=array();
-        parse_str($body,$result);
-                
-        return $result;
-    }
-    
+            
     function peerSetCapabilities($peerURL) {
         echo "Sending capability to $peerURL".PHP_EOL;
-        $this->clients[$peerURL]->setCapabilities(
+        $this->peers->item($peerURL)->setCapabilities(
                 $this -> config['id'],
                 $this -> config['capabilities']
         );
@@ -114,7 +37,7 @@ class Interconnection {
     
     function peerSetFootprint($peerURL) {
         echo "Sending footprint to $peerURL".PHP_EOL;
-        $this->clients[$peerURL]->setFootprint(
+        $this->peers->item($peerURL)->setFootprint(
                 $this -> config['id'],
                 implode(",",$this -> config['footprint'])
         );
@@ -130,14 +53,14 @@ class Interconnection {
             $peerURL = $peer['peerURL'];
             if (defined('MOD_DEBUG')) echo "Sending local status ($status) to $peerURL".PHP_EOL;
 
-            $this->clients[$peerURL]->setOfferLocalStatus($this -> config['id'],  $status);
+            $this->peers->item($peerURL)->setOfferLocalStatus($this -> config['id'],  $status);
         }        
     }
 
     function peerSetOffer($peerURL) {
         if (defined('MOD_DEBUG')) echo "Sending offer to $peerURL".PHP_EOL;
         
-        $result = $this -> clients[$peerURL] -> setOffer(
+        $result = $this -> peers -> item($peerURL) -> setOffer(
             $this -> config['id'],
             $this -> config['APIurl']
         );
@@ -255,7 +178,7 @@ class Interconnection {
      * Executes all necessary methods for processing
      * This method is core method, it can be equaled to main function
      */
-    function cron () {
+    function cron() {
         header('Content-type: text/plain');
         $this -> processLocalOffers();
         $this -> processContentForTransfer();
@@ -409,7 +332,7 @@ class Interconnection {
         
         //var_dump($this->config['id'],$contentID,$metadata);
         
-        $this->clients[$interconID]->setContentBasicMetadata($this->config['id'],$contentID,$metadata);
+        $this->peers($interconID)->setContentBasicMetadata($this->config['id'],$contentID,$metadata);
     }
 
     function setContentBasicMetadata($CDNid,$contentID,$metadata) {
