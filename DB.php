@@ -1,5 +1,7 @@
 <?
 
+class DBException extends Exception {}
+
 class DB {
     /**@var resource*/
     protected $link = null;
@@ -7,6 +9,14 @@ class DB {
     protected $config = null;
     /**@var resource*/
     protected $qr = null;
+
+    /**
+     * cretes new command, which can be executed
+     * @return DBCommand
+     */
+    public function createCommand() {
+        return new DBCommand($this);
+    }
     
     /**
      * 
@@ -39,11 +49,12 @@ class DB {
      * @return resource
      */
     function query($query) {
-        $this->qr = mysql_query($query, $this->getLink());
+        $res = mysql_query($query, $this->getLink());
         
         if (  mysql_errno( $this->getLink() )  )
-            echo mysql_error( $this->getLink() );
+            throw new DBException("Error on query: "+mysql_error( $this->getLink() ));
         
+        $this->qr = new DBResult($res);
         return $this->qr;
     }
     
@@ -161,10 +172,9 @@ class DB {
      * Database is taken from config
      */
     function flushdatabase(){
-		echo "Entering the flushdatabase function"."<br \>";
-	
+		echo "Entering the flushdatabase function"."<br \>";	
 		$database = $this->config['databaseName'];
-	
+                
 		$query = "SHOW TABLES FROM $database";
 	
 		$res = $this->query($query);

@@ -86,15 +86,22 @@ class Interconnection {
      * Send offers to all CDNi interfaces defined in config
      * Every interconnection is stored in database with actual status
      */
-    function processLocalOffers() {        
+    function processOffers() {        
         if (isset($this -> config['i']['peers'])) {
             foreach ($this -> config['i']['peers'] as $peer) {
                 echo "Processing: "; var_dump($peer);
+                $comm = $this->db->createCommand();
+                $comm->text = "SELECT * FROM interconnections WHERE peerURL = :peerURL";
+                $comm->addParameter(":peerURL", $peer['APIurl']);
+                $res = $comm->execute();
+                if ($res ->  <= 0) {
+                    $this->db->insertIgnore('interconnections',array("peerURL" => $peer['APIurl'],"localStatus"=>"offer"));
+                } else {
+                    $iterconn = $this->db->         
+                }
                 
-                $this -> db -> select('interconnections','COUNT(*)',array('WHERE' => "peerURL='". $this->db->escape_string($peer['APIurl']). "'"));
-
-                if ($this -> db -> errno()) echo $this -> db -> error ();
-                elseif ($this -> db -> result() <= 0) {
+                   
+                    
                     $this -> addPeer($peer);
                     $peerObj = $this -> peerSetOffer ($peer['APIurl']);
                         
@@ -180,7 +187,7 @@ class Interconnection {
      */
     function cron() {
         header('Content-type: text/plain');
-        $this -> processLocalOffers();
+        $this -> processOffers();
         $this -> processContentForTransfer();
         $this -> processLocalContentForTransfer();
     }
