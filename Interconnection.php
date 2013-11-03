@@ -1,21 +1,25 @@
 <?
 class Interconnection {
-    /**@var mixed[] Array of all configration items*/
-    protected $config;
+    /**@var Core information*/
+    protected $core;
     /**@var DB Object to handle all queries to local database of CDNi interface*/
     protected $db = null;
     /**@var */
     public $iCDN = null;
     /**@var InterconPeers */
     protected $peers;
+    
+    /** @var mixed[String] configuration of interconnection*/
+    protected $config;
 
     /**
      * 
      * @param mixed[] $config Array of all configration items
      */
-    function __construct($config) {
-        $this -> config = $config;       
-        $this -> db = new DB($this->config['i']);
+    function __construct(Core $core) {
+        $this -> core = $core;       
+        $this -> config = $this -> core -> config('CDN');
+        $this -> db = new DB($this -> config['i']);
         $this -> peers = new InterconPeers($this->db);
     }
         
@@ -27,9 +31,17 @@ class Interconnection {
         $this -> config = $config;
     }
             
-    function peerSetCapabilities($peerURL) {
-        echo "Sending capability to $peerURL".PHP_EOL;
-        $this->peers->item($peerURL)->setCapabilities(
+    function peerSetCapabilities($key) {
+        $this->peerObjSetCapabilities($this->peers->item($key));
+    }
+    
+    /**
+     * Sends capabilities to interconnection peer
+     * @param InterconPeer $peerObj
+     */
+    function peerObjSetCapabilities(InterconPeer $peerObj) {
+        echo "Sending capability to $key".PHP_EOL;
+        $peerObj->setCapabilities(
                 $this -> config['id'],
                 $this -> config['capabilities']
         );
@@ -51,16 +63,27 @@ class Interconnection {
             $this->addPeer($peer);
             
             $peerURL = $peer['peerURL'];
-            if (defined('MOD_DEBUG')) echo "Sending local status ($status) to $peerURL".PHP_EOL;
+            if (defined('MOD_DEBUG')) {
+                echo "Sending local status ($status) to $peerURL" . PHP_EOL;
+            }
 
             $this->peers->item($peerURL)->setOfferLocalStatus($this -> config['id'],  $status);
         }        
     }
 
-    function peerSetOffer($peerURL) {
-        if (defined('MOD_DEBUG')) echo "Sending offer to $peerURL".PHP_EOL;
+    /**
+     * 
+     * @param String $peerKey
+     * @return InterconPeer
+     */
+    function peerSetOffer($peerKey) {
+        if (defined('MOD_DEBUG')) {
+            echo "Sending offer to $peerKey" . PHP_EOL;
+        }
         
-        $result = $this -> peers -> item($peerURL) -> setOffer(
+        $result = $this -> peers -> item($peerKey);        
+        
+        $result -> setOffer(
             $this -> config['id'],
             $this -> config['APIurl']
         );
@@ -69,8 +92,10 @@ class Interconnection {
     }
     
     function peerSetContentBasicMetadata($peerURL,$contentID,$metadata) {
-        if (defined('MOD_DEBUG')) echo "Sending SetContentBasicMetadata to $peerURL".PHP_EOL;
-        
+        if (defined('MOD_DEBUG')) {
+            echo "Sending SetContentBasicMetadata to $peerURL" . PHP_EOL;
+        }
+
         $fields=array(
             'CDNid' => $this -> config['id'],
             'contentID'  => $contentID,
@@ -83,26 +108,33 @@ class Interconnection {
     }
     
     /**
-     * Send offers to all CDNi interfaces defined in config
-     * Every interconnection is stored in database with actual status
+     * Loads offers from config to database, existing items in db are kept
      */
-    function processOffers() {        
+    function loadOffers() {        
         if (isset($this -> config['i']['peers'])) {
             foreach ($this -> config['i']['peers'] as $peer) {
-                echo "Processing: "; var_dump($peer);
+                
+                echo "Processing: ";
                 $comm = $this->db->createCommand();
-                $comm->text = "SELECT * FROM interconnections WHERE peerURL = :peerURL";
+                $comm->text = "SELECT * FROM interconnections WHERE peerURL = :peerURL";
                 $comm->addParameter(":peerURL", $peer['APIurl']);
                 $res = $comm->execute();
-                if ($res ->  <= 0) {
-                    $this->db->insertIgnore('interconnections',array("peerURL" => $peer['APIurl'],"localStatus"=>"offer"));
+                if ($res ->num_rows() <= 0) {                    
+                    $this->db->insert('interconnections',
+                        array(
+                            'peerURL' => $peer['APIurl'],
+                            'localStatus' => 'offer'
+                        )
+                    );
                 } else {
-                    $iterconn = $this->db->         
+                    $peer = $res->fetch_assoc();
                 }
-                
-                   
+                //var_dump($peer);
                     
-                    $this -> addPeer($peer);
+                $peerObj = $this -> peers -> addPeerFromRow($peer);
+                $localStatus = $peerObj ->getLocalStatus();// $interconn['localStatus'];
+                
+                if (is_null($localStatus) || $localStatus === 'new' || $localStatus === 'offer') {
                     $peerObj = $this -> peerSetOffer ($peer['APIurl']);
                         
                     if (isset($peerObj) && !is_null($peerObj) && $peerObj !== false) {
@@ -122,28 +154,99 @@ class Interconnection {
                 }
             }
         }
-        
+    }
+    
+    /**
+     * Send offers to all CDNi interfaces defined in DB or config
+     * Every interconnection is stored in database with actual status
+     */
+    function processOffers() {
+        $this->loadOffers();
+/*
+        if (isset($this -> config['i']['peers'])) {
+            foreach ($this -> config['i']['peers'] as $peer) {
+                
+                echo "Processing: ";
+                $comm = $this->db->createCommand();
+                $comm->text = "SELECT * FROM interconnections WHERE peerURL = :peerURL";
+                $comm->addParameter(":peerURL", $peer['APIurl']);
+                $res = $comm->execute();
+                if ($res ->num_rows() <= 0) {                    
+                    $peer['localStatus']='offer';
+                    $this->db->insert('interconnections', $peer);
+                } else {
+                    $peer = $res->fetch_assoc();
+                }
+                //var_dump($peer);
+                    
+                $this -> peers -> addPeerFromRow($peer);
+                $localStatus = $peer -> localStatus();// $interconn['localStatus'];
+                if (is_null($peerStatus) || $peerStatus === 'new' || $peerStatus === 'offer') {
+                    $peerObj = $this -> peerSetOffer ($peer['APIurl']);
+                        
+                    if (isset($peerObj) && !is_null($peerObj) && $peerObj !== false) {
+                        $peer['id'] = $peerObj['CDNid'];
+                        $this->addPeer($peer);
 
-        $this -> db -> select('interconnections', array('interconID', 'CDNid', 'peerURL', 'localStatus', 'peerStatus'), array('WHERE' => "localStatus='offer'"));
+                        $this->db->insertIgnore("interconnections",
+                                array (
+                                    'CDNid' => $peer['id'],
+                                    'peerURL' => $peer['APIurl'],
+                                    'localStatus' => 'offer'     
+                                )
+                        );
+                                
+                        if ($this->db->errno()) echo $this->db->error () . PHP_EOL;
+                    }
+                }
+            }
+        }
+*/        
+        $dbResult = $this -> db -> select('interconnections', array('interconID', 'CDNid', 'peerURL', 'localStatus', 'peerStatus'), array('WHERE' => "localStatus='offer'"));
 
         if ($this -> db -> errno()) echo $this->db->error ();
         else {
-            while ( $peer = $this -> db -> fetch_assoc() ) {
-                $this -> addPeer($peer);                
-                $this -> peerSetCapabilities($peer['peerURL']);
-                $this -> peerSetFootprint   ($peer['peerURL']);
+            while ( $peer = $dbResult -> fetch_assoc() ) {
+                $peerObj = $this -> peers -> addPeerFromRow($peer, false);                
+                $this->peerObjSetCapabilities($peerObj);
             }
         }
+        
+        $dbResult = $this -> db -> select('interconnections', array('interconID', 'CDNid', 'peerURL', 'localStatus', 'peerStatus'), array('WHERE' => "peerStatus IS NULL"));
+
+        if ($this -> db -> errno()) echo $this->db->error ();
+        else {
+            while ( $peer = $dbResult -> fetch_assoc() ) {
+                $peerObj = $this -> peers ->addPeerFromRow($peer);                
+                $this -> peerGetLocalStatus($peerObj);
+            }
+        }        
     }
 
+    /**
+     * 
+     * @param type $peerObj
+     */
+    function peerGetLocalStatus(InterconPeer $peerObj) { 
+        $peerObj->getMyLocalStatus($this->config['id']);
+    }
+    
+    /**
+     * 
+     * @param type $id
+     */
+    function getMyLocalStatus($id) {
+        $this->peers->item($id)->getLocalStatus();
+    }
+    
     /**
      * Returns all intercooections
      * @return string[][]
      */
     function getAllInterconnections() {
         $intercons=array(); 
-        $this -> db -> select(' interconnections','*',array('WHERE' => "peerStatus='complete'"));
-        while ($intercon = $this->db->fetch_assoc()) {
+        $dbResult = $this -> db -> select(' interconnections','*',array('WHERE' => "peerStatus='complete'"));
+        while ($intercon = $dbResult->fetch_assoc()) {
             array_push($intercons,$intercon);
         }
         return $intercons;
@@ -153,11 +256,11 @@ class Interconnection {
      * Process all content, and chooses items, which should be distributed
      */
     function processContentForTransfer() {
-        $this -> addAllPeers();
+        $this -> peers -> addDBPeers();
         $intercons=$this->getAllInterconnections();
         
-        $this -> db -> select('content');
-        while($content = $this->db->fetch_assoc()) {
+        $dbResult = $this -> db -> select('content');
+        while($content = $dbResult -> fetch_assoc()) {
             foreach ($intercons as $intercon)
                 $this -> distributeContent($content,$intercon);  
         }
@@ -167,7 +270,7 @@ class Interconnection {
      * Process all content from local CDN, and chooses items, which should be distributed
      */
     function processLocalContentForTransfer() {
-        $this -> addAllPeers();
+        $this -> peers ->addDBPeers();
         $intercons=$this->getAllInterconnections();
         
         if (!is_null($this->iCDN)) {
@@ -380,6 +483,21 @@ class Interconnection {
         return false;                
     }
 
+    /**
+     * 
+     * @return String[int][String]
+     */
+    function routing() {
+            $result = array();
+            $qr = $this->db->query("SELECT * FROM peerFootprints LEFT JOIN interconnections USING (interconID)");
+            while ($row = $qr->fetch_assoc()) {
+                array_push($result, $row);                
+            }
+            
+            
+            return $result;
+    }
+    
     function updateCompleteStatus($interconID) { 
         $this->db->query("SELECT COUNT(*) FROM peerFootprints WHERE interconID=$interconID;");
         if ($this->db->errno()) echo $this->db->error () . PHP_EOL;

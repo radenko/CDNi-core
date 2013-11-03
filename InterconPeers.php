@@ -38,21 +38,22 @@ class InterconPeers {
     /**
      * Adds all pears from database and creates clients to them.
      */
-    function addAllPeers() {
-        $this -> db -> select('interconnections');
+    function addDBPeers() {
+        $dbResult = $this -> db -> select('interconnections');
             
-        while ($item = $this -> db -> fetch_assoc()) {
-                $this -> addPeer($item);
+        while ($item = $dbResult -> fetch_assoc()) {
+                $this -> addPeerFromRow($item);
         }
     }
-    
+        
     /**
      * Add peer to list of peers
      * @param String[String] $params
      * @param boolean $replace Controls replacement during construction.
      *        All interconnections are indexed by id of peer, url, interconnectionID.
+     * @return InterconPeer Interconnection client
      */
-    public function addPeer($params,$replace=false) {
+    public function addPeerFromRow($params,$replace=false) {
         $lparams = array_change_key_case($params);
         $id = null;
         $url = null;
@@ -69,7 +70,7 @@ class InterconPeers {
         if (isset($lparams['apiurl']))
             $url = $lparams['apiurl'];
         
-        $this -> addPeer2($id,$url,$params,$replace);
+        return $this -> addPeer($id,$url,$params,$replace);
     }
     
     /**
@@ -80,8 +81,9 @@ class InterconPeers {
      * @param String $url
      * @param mixed[String] $params
      * @param boolean $replace Controls replacement during construction.
+     * @return InterconPeer New object for interconnection
      */
-    public function addPeer2 ($id,$url,$params,$replace=false) {
+    public function addPeer ($id,$url,$params,$replace=false) {
         if (isset($params['interconID']))
             $interconID = $params['interconID'];
                 
@@ -106,22 +108,25 @@ class InterconPeers {
             $this -> clients[$id] = $client;
         if (isset($params['interconID']))
             $this -> clients[$params['interconID']] = $client;
+        
+        return $client;
     }
     
     /**
      * 
-     * @param String $CDNid ID of peer CDN
+     * @param String $key unique id of interconnetcion (peerURL, peer CDN ID, interconID)
+     * @param boolean $canCreate Creates interconnection from database if possible
      * @return InterconPeer
      */
-    function getPeer($CDNid, $canCreate = true) {
+    function getPeer($key, $canCreate = true) {
         if (!$this->exists($CDNid)) {
             if ($canCreate) {
-                $this -> db -> select('interconnections','*',
-                    array('WHERE' => "CDNid=$CDNid")
+                $dbResult = $this -> db -> select('interconnections','*',
+                    array('WHERE' => "CDNid=$key")
                 );
             
-                while ($item = $this -> db -> fetch_assoc($result)) {
-                    $this -> addPeer($item['peerURL'],$item);
+                while ($item = $dbResult -> fetch_assoc($result)) {
+                    $this -> addPeerFromRow($item);
                 }
             } else {
                 return null;                
@@ -144,7 +149,7 @@ class InterconPeers {
         $response = http_post_fields($peerURL."/".$method, $params);
         $responseObj=http_parse_message($response);
         $body=$responseObj->body;
-        if (defined("MODE_DEBUG")) echo "Result: $body".PHP_EOL;
+        if (defined("MODE_DEBUG")) {echo "Result: $body".PHP_EOL;}
         
         $result=array();
         parse_str($body,$result);

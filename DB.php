@@ -46,15 +46,15 @@ class DB {
     /**
      * 
      * @param string $query
-     * @return resource
+     * @return DBResult
      */
     function query($query) {
         $res = mysql_query($query, $this->getLink());
         
         if (  mysql_errno( $this->getLink() )  )
-            throw new DBException("Error on query: "+mysql_error( $this->getLink() ));
+            throw new DBException("Error on query (".$query."): ".mysql_error( $this->getLink() ));
         
-        $this->qr = new DBResult($res);
+        $this->qr = $res?new DBResult($res):null;
         return $this->qr;
     }
     
@@ -195,13 +195,13 @@ class DB {
     
     /**
      * Return actual record from query result and increments internal pointer to next record.
-     * @param resource $qr If not set local variable of this instance is taken
+     * @param DBResult $qr If not set local variable of this instance is taken
      * @return mixed[string]
      */
-    function fetch_assoc($qr=null) {
+     /*function fetch_assoc(DBResult $qr=null) {
         if (is_null($qr)) $qr = $this->qr;        
-        return mysql_fetch_assoc($qr); 
-    }
+        return $qr->fetch_assoc(); 
+    }*/
 
     /**
      * Return actual record from query result and increments internal pointer to next record.

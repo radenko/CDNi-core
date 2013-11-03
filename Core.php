@@ -7,8 +7,30 @@
  */
 class Core {
     /** @var mixed[] Description */
-    private static $config;
+    private $config;
     
+    /**
+     * 
+     * @return mixed
+     */
+    public function config() {
+        $result = $this->config;
+        foreach (func_get_args() as $arg) {
+            $result = $result[$arg];            
+        }
+        
+        //var_dump($this->config);
+        return $result;
+    }
+    
+    /**
+     * 
+     * @return mixed[]
+     */
+    public function getConfig($key) {
+        return $this->config;
+    }
+
     /**
      * autoloads class from file
      * @param String $classname
@@ -29,8 +51,8 @@ class Core {
      * initializes CDNi core
      * @param mixed[] $config
      */
-    public static function init($config) {
-        self::$config = $config;
+    public function __construct($config) {
+        $this->config = $config;
         
         if (isset($config['libDir'])) set_include_path(get_include_path().PATH_SEPARATOR.$config['libDir']);
     }

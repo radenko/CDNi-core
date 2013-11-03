@@ -14,7 +14,7 @@ class DBCommand {
     /** @var DB*/
     private $parent;
     /** @var mixed[String] */
-    public $parameters;
+    public $parameters = array();
     /** @var String*/
     public $text;
     /** @var DBResult*/
@@ -33,7 +33,7 @@ class DBCommand {
      * @param mixed $value
      */
     public function addParameter($name, $value) {
-        $parameters[$name] = $value;
+        $this->parameters[$name] = $value;
     }
     
     /**
@@ -43,18 +43,19 @@ class DBCommand {
     public function execute() {
        $query = $this->text;
        foreach ($this->parameters as $name=>$value) {
-           if (is_string($value))
-                $eval = "'".mysql_escape_string($value)."'";
            if (is_numeric($value))
                $eval = $value;
-           if (is_object($value))
+           elseif (is_object($value))
                $eval = "'".mysql_escape_string($value->__toString())."'";
+           else
+               $eval = "'".mysql_escape_string($value)."'";
            
            $query = str_replace ($name, $eval, $query);
        }
-        
-       $this->result = new DBResult($this->parent->query($query)); 
-       return $result;
+       
+       $qr = $this->parent->query($query);
+       $this->result = $qr!==false ? (   is_resource($qr) ? new DBResult($qr) : $qr   ) : null; 
+       return $this->result;
     }
     
     //put your code here
