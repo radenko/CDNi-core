@@ -81,14 +81,21 @@ class Interconnection {
             echo "Sending offer to $peerKey" . PHP_EOL;
         }
         
-        $result = $this -> peers -> item($peerKey);        
-        
-        $result -> setOffer(
+        return $this ->peerObjSetOffer($this -> peers -> item($peerKey));        
+    }
+    /**
+     * 
+     * @param InterconPeer $peerObj
+     * @return InterconPeer
+     */
+
+    function peerObjSetOffer($peerObj) {        
+        $peerObj -> setOffer(
             $this -> config['id'],
             $this -> config['APIurl']
         );
         
-        return $result;
+        return $peerObj;
     }
     
     function peerSetContentBasicMetadata($peerURL,$contentID,$metadata) {
@@ -113,29 +120,27 @@ class Interconnection {
     function loadOffers() {        
         if (isset($this -> config['i']['peers'])) {
             foreach ($this -> config['i']['peers'] as $peer) {
-                
                 echo "Processing: ";
                 $comm = $this->db->createCommand();
                 $comm->text = "SELECT * FROM interconnections WHERE peerURL = :peerURL";
                 $comm->addParameter(":peerURL", $peer['APIurl']);
                 $res = $comm->execute();
-                if ($res ->num_rows() <= 0) {                    
-                    $this->db->insert('interconnections',
-                        array(
-                            'peerURL' => $peer['APIurl'],
-                            'localStatus' => 'offer'
-                        )
+                if ($res ->num_rows() <= 0) {
+                    $peerRow = array(
+                        'peerURL' => $peer['APIurl'],
+                        'localStatus' => 'offer'
                     );
-                } else {
-                    $peer = $res->fetch_assoc();
-                }
-                //var_dump($peer);
                     
-                $peerObj = $this -> peers -> addPeerFromRow($peer);
+                    $this->db->insert('interconnections', $peerRow);
+                } else {
+                    $peerRow = $res->fetch_assoc();
+                }
+                $peerObj = $this->peers->addPeerFromRow($peerRow);
+                    
                 $localStatus = $peerObj ->getLocalStatus();// $interconn['localStatus'];
                 
                 if (is_null($localStatus) || $localStatus === 'new' || $localStatus === 'offer') {
-                    $peerObj = $this -> peerSetOffer ($peer['APIurl']);
+                    $this -> peerObjSetOffer ($peerObj);
                         
                     if (isset($peerObj) && !is_null($peerObj) && $peerObj !== false) {
                         $peer['id'] = $peerObj['CDNid'];
